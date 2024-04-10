@@ -4,6 +4,9 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
+const JwtStrategy = require('passport-jwt').Strategy;
+const ExtractJwt = require('passport-jwt').ExtractJwt;
+
 dotenv.config();
 const userService = require("./user-service.js");
 
@@ -12,6 +15,24 @@ const HTTP_PORT = process.env.PORT || 8080;
 app.use(express.json());
 app.use(cors());
 app.use(passport.initialize());
+
+const opts = {
+    jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+    secretOrKey: process.env.JWT_SECRET
+};
+
+passport.use(new JwtStrategy(opts, function (jwt_payload, done) {
+    userService.findById(jwt_payload._id, function (err, user) {
+        if (err) {
+            return done(err, false);
+        }
+        if (user) {
+            return done(null, user);
+        } else {
+            return done(null, false);
+        }
+    });
+}));
 
 app.post("/api/user/register", (req, res) => {
     userService.registerUser(req.body)
@@ -25,7 +46,6 @@ app.post("/api/user/register", (req, res) => {
 app.post("/api/user/login", (req, res) => {
     userService.checkUser(req.body)
         .then((user) => {
-            // Generate payload for JWT
             const payload = {
                 _id: user._id,
                 userName: user.userName
