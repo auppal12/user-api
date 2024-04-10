@@ -4,9 +4,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
-const JwtStrategy = require('passport-jwt').Strategy;
-const ExtractJwt = require('passport-jwt').ExtractJwt;
-
+const passportJWT = require('passport-jwt');
 dotenv.config();
 const userService = require("./user-service.js");
 
@@ -14,25 +12,36 @@ const HTTP_PORT = process.env.PORT || 8080;
 
 app.use(express.json());
 app.use(cors());
-app.use(passport.initialize());
 
-const opts = {
-    jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+let ExtractJwt = passportJWT.ExtractJwt;
+let JwtStrategy = passportJWT.Strategy;
+
+const jwtOptions = {
+    jwtFromRequest: ExtractJwt.fromAuthHeaderWithScheme("jwt"),
     secretOrKey: process.env.JWT_SECRET
 };
 
-passport.use(new JwtStrategy(opts, function (jwt_payload, done) {
-    userService.findById(jwt_payload._id, function (err, user) {
-        if (err) {
-            return done(err, false);
-        }
-        if (user) {
-            return done(null, user);
-        } else {
-            return done(null, false);
-        }
-    });
-}));
+let strategy = new JwtStrategy(jwtOptions, function (jwt_payload, next) {
+    console.log('payload received', jwt_payload);
+
+    if (jwt_payload) {
+        // The following will ensure that all routes using
+        // passport.authenticate have a req.user._id, req.user.userName, req.user.fullName & req.user.role values
+        // that matches the request payload data
+        next(null, {
+            _id: jwt_payload._id,
+            userName: jwt_payload.userName,
+        });
+    } else {
+        next(null, false);
+    }
+});
+
+// tell passport to use our "strategy"
+passport.use(strategy);
+
+// add passport as application-level middleware
+app.use(passport.initialize());
 
 app.post("/api/user/register", (req, res) => {
     userService.registerUser(req.body)
@@ -52,7 +61,7 @@ app.post("/api/user/login", (req, res) => {
             };
 
             // Sign the payload with JWT secret
-            const token = jwt.sign(payload, process.env.JWT_SECRET);
+            const token = jwt.sign(payload, jwtOptions.secretOrKey);
 
             // Send the JWT token along with the login successful message
             res.json({ "message": "login successful", "token": token });
