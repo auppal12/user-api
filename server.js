@@ -61,7 +61,7 @@ app.post("/api/user/login", (req, res) => {
             };
 
             // Sign the payload with JWT secret
-            const token = jwt.sign(payload, jwtOptions.secretOrKey);
+            const token = jwt.sign(payload, jwtOptions.secretOrKey, { expiresIn: 60 * 30 });
 
             // Send the JWT token along with the login successful message
             res.json({ "message": "login successful", "token": token });
